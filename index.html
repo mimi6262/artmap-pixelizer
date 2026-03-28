@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>마인크래프트 ArtMap 픽셀화 도구</title>
+<!--
+  minecraft_pixelart_tool.html
+  버전: v1.5
+  업데이트 이력:
+    v1.0 - 기본 픽셀화, 그리드, 캔버스 경계 표시
+    v1.1 - 마인크래프트 블록 64종 팔레트, 색상 이름 표시, 좌우반전, 캔버스별 다운로드
+    v1.2 - 캔버스 크기 32x32로 수정, 업로드 이미지 리사이즈 슬라이더 추가
+    v1.3 - ArtMap 플러그인 정식 팔레트 적용 (61종 염료 x 4단계 명암)
+    v1.4 - 정보 패널 제거, 마우스 호버 툴팁, 캔버스 내부 보조 그리드
+    v1.5 - 툴팁 버그 수정 (oc pointer-events 문제 → mc에 이벤트 이동)
+           색 번짐 옵션 한국어화
+           색 번짐 도움말 모달 추가
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#1a1a1a;padding:1rem;}
+h1{font-size:18px;font-weight:500;margin-bottom:4px;}
+.version{font-size:11px;color:#888;margin-bottom:1rem;}
+.panel{background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:1rem;margin-bottom:1rem;}
+.slabel{font-size:12px;color:#666;margin-bottom:8px;}
+.upload-zone{border:1.5px dashed #bbb;border-radius:12px;padding:2rem;text-align:center;cursor:pointer;color:#888;font-size:14px;}
+.upload-zone:hover{background:#f9f9f9;}
+button{font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid #ddd;background:transparent;color:#1a1a1a;cursor:pointer;}
+button:hover{background:#f0f0f0;}
+button.primary{background:#1a6ef5;color:#fff;border:none;}
+button.primary:hover{background:#1558cc;}
+select{font-size:12px;padding:5px 8px;border-radius:8px;border:1px solid #ddd;background:#fff;color:#1a1a1a;}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;}
+.ctrl-group{display:flex;flex-direction:column;gap:4px;}
+.ctrl-group label{font-size:11px;color:#666;}
+.row{display:flex;gap:8px;align-items:center;}
+
+/* 캔버스 래퍼 */
+.canvas-wrap{position:relative;overflow:auto;max-height:700px;}
+#mc{display:block;image-rendering:pixelated;cursor:crosshair;}
+#oc{position:absolute;top:0;left:0;pointer-events:none;image-rendering:pixelated;}
+
+.dl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;}
+.toggle{display:flex;align-items:center;gap:5px;font-size:12px;color:#555;cursor:pointer;}
+.toggle-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;}
+input[type=range]{width:90px;}
+
+/* 툴팁 */
+#tooltip{
+  position:fixed;display:none;
+  background:rgba(15,15,15,0.93);color:#fff;
+  font-size:12px;padding:8px 12px;border-radius:9px;
+  pointer-events:none;z-index:9999;
+  line-height:1.7;white-space:nowrap;
+  box-shadow:0 3px 12px rgba(0,0,0,0.35);
+}
+.tt-row{display:flex;align-items:center;gap:7px;}
+.tt-swatch{width:14px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,0.25);flex-shrink:0;}
+.tt-name{font-weight:600;font-size:13px;}
+.tt-shade{color:#bbb;font-size:11px;}
+.tt-hex{color:#7eb8ff;font-size:11px;font-family:monospace;}
+.tt-coord{color:#666;font-size:10px;margin-top:2px;}
+
+/* 도움말 버튼 */
+.help-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:50%;
+  background:#e8e8e8;color:#555;font-size:11px;font-weight:700;
+  cursor:pointer;border:none;margin-left:4px;vertical-align:middle;
+  flex-shrink:0;
+}
+.help-btn:hover{background:#d0d0d0;}
+
+/* 모달 */
+.modal-bg{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,0.45);z-index:10000;
+  align-items:center;justify-content:center;
+}
+.modal-bg.open{display:flex;}
+.modal{
+  background:#fff;border-radius:14px;padding:1.5rem;
+  max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2);
+}
+.modal h2{font-size:15px;font-weight:600;margin-bottom:12px;}
+.modal-close{float:right;cursor:pointer;font-size:18px;color:#888;background:none;border:none;line-height:1;}
+.modal-close:hover{color:#333;}
+.dither-option{margin-bottom:12px;padding:10px 12px;border-radius:8px;background:#f8f8f8;border:1px solid #eee;}
+.dither-option .opt-name{font-size:13px;font-weight:600;margin-bottom:4px;}
+.dither-option .opt-desc{font-size:12px;color:#555;line-height:1.6;}
+.dither-option .opt-tag{
+  display:inline-block;font-size:10px;padding:1px 7px;border-radius:4px;
+  margin-bottom:5px;font-weight:600;
+}
+.tag-rec{background:#e8f3ff;color:#1a6ef5;}
+.tag-art{background:#fff3e0;color:#e07b00;}
+.tag-simple{background:#f0f0f0;color:#555;}
+</style>
+</head>
+<body>
+
+<h1>마인크래프트 ArtMap 픽셀화 도구</h1>
+<div class="version">v1.5 — ArtMap 플러그인 팔레트 (61종 염료 × 4단계 명암)</div>
+
+<!-- 툴팁 -->
+<div id="tooltip">
+  <div class="tt-row">
+    <div class="tt-swatch" id="ttSwatch"></div>
+    <span class="tt-name" id="ttName"></span>
+  </div>
+  <div><span class="tt-shade" id="ttShade"></span> &nbsp;<span class="tt-hex" id="ttHex"></span></div>
+  <div class="tt-coord" id="ttCoord"></div>
+</div>
+
+<!-- 색 번짐 도움말 모달 -->
+<div class="modal-bg" id="ditherModal">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('ditherModal').classList.remove('open')">✕</button>
+    <h2>색 번짐(디더링)이란?</h2>
+    <p style="font-size:12px;color:#555;margin-bottom:14px;line-height:1.7;">
+      ArtMap 팔레트에 없는 색을 표현할 때, 주변 픽셀에 서로 다른 색을 섞어
+      멀리서 보면 중간 색처럼 보이게 만드는 기법이에요.<br>
+      예) 팔레트에 빨강·흰색만 있을 때 → 두 색을 체크무늬로 배치 → 분홍처럼 보임
+    </p>
+    <div class="dither-option">
+      <div class="opt-name">없음</div>
+      <span class="opt-tag tag-simple">단순</span>
+      <div class="opt-desc">각 픽셀을 팔레트에서 가장 가까운 색으로만 바꿔요. 색 번짐 없이 딱딱하고 선명한 결과가 나와요. 단순한 캐릭터·로고 이미지에 적합해요.</div>
+    </div>
+    <div class="dither-option">
+      <div class="opt-name">자연스럽게 (Floyd-Steinberg)</div>
+      <span class="opt-tag tag-rec">사진 추천</span>
+      <div class="opt-desc">색의 오차를 주변 픽셀로 퍼뜨려요. 그라데이션·풍경·인물 사진에서 가장 자연스러운 결과가 나와요. 대부분의 경우 이 옵션을 추천해요.</div>
+    </div>
+    <div class="dither-option">
+      <div class="opt-name">패턴으로 (Ordered)</div>
+      <span class="opt-tag tag-art">도트 느낌</span>
+      <div class="opt-desc">규칙적인 점 패턴으로 색을 섞어요. 레트로·도트아트 느낌이 나서 일부러 예술적으로 사용하기도 해요.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 업로드 -->
+<div class="panel">
+  <div class="slabel">이미지 업로드</div>
+  <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fi').click()">
+    클릭하거나 드래그해서 이미지 업로드 (PNG, JPG)
+  </div>
+  <input type="file" id="fi" accept="image/*" style="display:none">
+  <div id="resizePanel" style="display:none;margin-top:12px;">
+    <div class="slabel">이미지 크기 조절</div>
+    <div class="controls">
+      <div class="ctrl-group">
+        <label>크기 비율</label>
+        <div class="row">
+          <input type="range" id="resizeScale" min="10" max="200" value="100" step="5">
+          <span id="rsv" style="font-size:13px;font-weight:500;min-width:38px;">100%</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div style="background:#f5f5f5;border-radius:8px;padding:6px 12px;font-size:12px;">원본: <strong id="origSize">-</strong></div>
+        <div style="background:#f5f5f5;border-radius:8px;padding:6px 12px;font-size:12px;">조절 후: <strong id="scaledSize">-</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 설정 -->
+<div class="panel">
+  <div class="slabel">설정</div>
+  <div class="controls">
+    <div class="ctrl-group">
+      <label>캔버스 가로 (개)</label>
+      <div class="row"><input type="range" id="cx" min="1" max="8" value="2"><span id="cxv" style="font-size:13px;font-weight:500;min-width:14px;">2</span></div>
+    </div>
+    <div class="ctrl-group">
+      <label>캔버스 세로 (개)</label>
+      <div class="row"><input type="range" id="cy" min="1" max="8" value="2"><span id="cyv" style="font-size:13px;font-weight:500;min-width:14px;">2</span></div>
+    </div>
+    <div class="ctrl-group">
+      <label>
+        색 번짐 (디더링)
+        <button class="help-btn" onclick="document.getElementById('ditherModal').classList.add('open')">?</button>
+      </label>
+      <select id="dither">
+        <option value="none">없음</option>
+        <option value="floyd">자연스럽게 (사진 추천)</option>
+        <option value="ordered">패턴으로 (도트 느낌)</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label>보조 그리드 분할</label>
+      <select id="subGrid">
+        <option value="0">없음</option>
+        <option value="4" selected>4분할 (8×8칸)</option>
+        <option value="8">8분할 (4×4칸)</option>
+        <option value="2">2분할 (16×16칸)</option>
+      </select>
+    </div>
+  </div>
+  <div class="toggle-row">
+    <label class="toggle"><input type="checkbox" id="showGrid" checked> 픽셀 그리드</label>
+    <label class="toggle"><input type="checkbox" id="showBorder" checked> 캔버스 경계</label>
+    <label class="toggle"><input type="checkbox" id="showLabel"> 색상 이름</label>
+    <label class="toggle"><input type="checkbox" id="flipH"> 좌우반전</label>
+  </div>
+  <div style="margin-top:12px;"><button class="primary" onclick="processImage()">픽셀화 적용</button></div>
+</div>
+
+<!-- 미리보기 -->
+<div class="panel" id="canvasPanel" style="display:none;">
+  <div class="slabel" style="margin-bottom:8px;">
+    미리보기
+    <span style="font-size:11px;color:#888;">— 주황선: 캔버스 경계 · 파란점선: 보조 그리드 · 마우스 올리면 재료 표시</span>
+  </div>
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="mc"></canvas>
+    <canvas id="oc"></canvas>
+  </div>
+</div>
+
+<!-- 다운로드 -->
+<div class="panel" id="dlPanel" style="display:none;">
+  <div class="slabel" style="margin-bottom:8px;">다운로드</div>
+  <div style="margin-bottom:10px;"><button onclick="downloadAll()">전체 합본 다운로드</button></div>
+  <div class="slabel">캔버스별 개별 다운로드</div>
+  <div class="dl-grid" id="dlGrid"></div>
+</div>
+
+<script>
+const CELL = 32;
+
+const DYE_DATA = [
+  ["Raw Iron",          "#cfaf9f","#b29688","#917b70","#6d5c54"],
+  ["Pink Dye",          "#ef7ea3","#ce6c8c","#a85873","#7e4256"],
+  ["Beetroot",          "#93566b","#7e4a5c","#683c4b","#4d2d38"],
+  ["Crimson Stem",      "#794857","#683d4a","#55323d","#3f262d"],
+  ["Purple Dye",        "#9e9efc","#8888d9","#6f6fb2","#535385"],
+  ["Magenta Dye",       "#b04bd5","#9740b8","#7c3496","#5d2871"],
+  ["Purpur Block",      "#7e3eb0","#6c3597","#582b7c","#42215d"],
+  ["Chorus Fruit",      "#4b3d5b","#40344e","#342a3f","#28202f"],
+  ["Warped Hyphae",     "#6f6b88","#5f5c76","#4e4b60","#3a3848"],
+  ["Blue Dye",          "#324bb0","#2b4097","#24347c","#1b285d"],
+  ["Lapis Lazuli",      "#3f3ffc","#3636d9","#2c2cb2","#212185"],
+  ["Block of Lapis",    "#497efc","#3e6dd9","#3359b2","#274285"],
+  ["Lapis Ore",         "#5bd8d2","#4ebab5","#3f9894","#2f726f"],
+  ["Cyan Dye",          "#6597d5","#5782b8","#476b96","#355071"],
+  ["Prismarine",        "#4b7e97","#406c82","#34586b","#284250"],
+  ["Lime Dye",          "#7eca19","#6cae15","#588e11","#426b0d"],
+  ["Slimeball",         "#7eb037","#6c972f","#587c27","#425d1d"],
+  ["Grass",             "#667434","#57632c","#475125","#353c1c"],
+  ["Green Dye",         "#657e32","#576c2b","#475824","#35421b"],
+  ["Glow Lichen",       "#4b512a","#404524","#34381d","#282a16"],
+  ["Emerald",           "#00d639","#00b931","#009728","#00711e"],
+  ["Oak Leaves",        "#007b00","#006900","#005600","#004000"],
+  ["Yellow Dye",        "#f4e6a1","#d2c78a","#aca272","#807a55"],
+  ["Gold Nugget",       "#f7eb4c","#d4cb41","#aea635","#827d28"],
+  ["Glowstone Dust",    "#e2e232","#c3c32b","#9f9f24","#78781b"],
+  ["Pumpkin Seeds",     "#b88324","#9e711f","#815c19","#614513"],
+  ["Orange Dye",        "#d57e32","#b86c2b","#965824","#71421b"],
+  ["Magma Cream",       "#9d5124","#87451f","#6f3819","#532a13"],
+  ["Egg",               "#8d7647","#7a653d","#635331","#4a3e26"],
+  ["Melon Seeds",       "#956c4c","#805d41","#694b35","#4e3828"],
+  ["Cocoa Beans",       "#7f5530","#6e492a","#5a3b22","#432c19"],
+  ["Podzol",            "#6e3821","#654b32","#57402b","#473424"],
+  ["Dark Oak Log",      "#35281b","#4b3123","#402a1e","#342318"],
+  ["Soul Sand",         "#281a12","#382923","#30231e","#281c18"],
+  ["Charcoal",          "#1e1512","#251610","#1f120d","#1a0f0b"],
+  ["Brick",             "#130b08","#8c3b2d","#793227","#632a20"],
+  ["Spider Eye",        "#4a1f18","#9e4c4d","#884142","#6f3536"],
+  ["Apple",             "#532829","#973232","#822b2b","#6b2424"],
+  ["Red Dye",           "#501b1b","#fc0000","#d90000","#b20000"],
+  ["Crimson Nylium",    "#850000","#6f0200","#5f0100","#4e0100"],
+  ["Nether Wart",       "#3a0100",null,null,null],
+  ["Snow",              "#fcfcfc","#d9d9d9","#b2b2b2","#858585"],
+  ["Bone Meal",         "#fcf9f2","#d9d6d1","#b2afaa","#85837f"],
+  ["Cobweb",            "#c5c5c5","#a9a9a9","#8a8a8a","#686868"],
+  ["Light Gray Dye",    "#a5a5a5","#8e8e8e","#747474","#575757"],
+  ["Ice",               "#a2a6b6","#8b8e9c","#72757f","#555760"],
+  ["Gray Dye",          "#979797","#828282","#6b6b6b","#505050"],
+  ["Birch Wood",        "#856a61","#735b53","#5e4a44","#463732"],
+  ["Gunpowder",         "#6f6f6f","#5f5f5f","#4e4e4e","#3a3a3a"],
+  ["Cobbled Deepslate", "#565b5b","#4a4e4e","#3c3f3f","#2d2f2f"],
+  ["Flint",             "#4b4b4b","#404040","#343434","#282828"],
+  ["Ink Sac",           "#191919","#151515","#111111","#0d0d0d"],
+  ["Brown Mushroom",    "#8d7647","#7a653d","#635331","#4a3e26"],
+  ["Ghast Tear",        "#a2a6b6","#8b8e9c","#72757f","#555760"],
+  ["Iron Nugget",       "#c5c5c5","#a9a9a9","#8a8a8a","#686868"],
+  ["Warped Stem",       "#4b7e97","#406c82","#34586b","#284250"],
+  ["Warped Nylium",     "#5bd8d2","#4ebab5","#3f9894","#2f726f"],
+  ["Warped Wart Block", "#6597d5","#5782b8","#476b96","#355071"],
+  ["Mycelium",          "#667434","#57632c","#475125","#353c1c"],
+  ["Crimson Hyphae",    "#7e4a5c","#683c4b","#4d2d38","#3f262d"],
+  ["Poisonous Potato",  "#657e32","#576c2b","#475824","#35421b"],
+];
+
+const SHADE_KO = ["밝게(L1)","기본","어둡게(D1)","더어둡게(D2)"];
+
+function hexToRgb(hex){
+  if(!hex)return null;
+  const h=hex.replace('#','');
+  return{r:parseInt(h.slice(0,2),16),g:parseInt(h.slice(2,4),16),b:parseInt(h.slice(4,6),16),hex};
+}
+
+const PALETTE=[];
+DYE_DATA.forEach(([name,...shades])=>{
+  shades.forEach((hex,si)=>{
+    const rgb=hexToRgb(hex);
+    if(rgb) PALETTE.push({name,shade:SHADE_KO[si],...rgb});
+  });
+});
+
+let origImg=null,pixelW=0,pixelH=0,blockMap=null,SCALE=1,origW=0,origH=0;
+
+const mc  =document.getElementById('mc');
+const oc  =document.getElementById('oc');
+const ctx =mc.getContext('2d');
+const octx=oc.getContext('2d');
+const tip =document.getElementById('tooltip');
+
+// 슬라이더
+document.getElementById('cx').addEventListener('input',e=>document.getElementById('cxv').textContent=e.target.value);
+document.getElementById('cy').addEventListener('input',e=>document.getElementById('cyv').textContent=e.target.value);
+document.getElementById('resizeScale').addEventListener('input',e=>{
+  const pct=parseInt(e.target.value);
+  document.getElementById('rsv').textContent=pct+'%';
+  if(origW&&origH)
+    document.getElementById('scaledSize').textContent=
+      `${Math.round(origW*pct/100)}×${Math.round(origH*pct/100)}px`;
+});
+['showGrid','showBorder','showLabel','subGrid'].forEach(id=>
+  document.getElementById(id).addEventListener('change',()=>{if(blockMap)drawOverlay();})
+);
+
+// 모달 바깥 클릭 닫기
+document.getElementById('ditherModal').addEventListener('click',function(e){
+  if(e.target===this) this.classList.remove('open');
+});
+
+// 업로드
+const uz=document.getElementById('uploadZone');
+uz.addEventListener('dragover',e=>{e.preventDefault();uz.style.background='#f0f0f0';});
+uz.addEventListener('dragleave',()=>uz.style.background='');
+uz.addEventListener('drop',e=>{e.preventDefault();uz.style.background='';const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+document.getElementById('fi').addEventListener('change',e=>{if(e.target.files[0])loadFile(e.target.files[0]);});
+
+function loadFile(f){
+  const r=new FileReader();
+  r.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      origImg=img;origW=img.naturalWidth;origH=img.naturalHeight;
+      uz.textContent=`로드 완료: ${f.name} (${origW}×${origH}px)`;
+      document.getElementById('resizePanel').style.display='block';
+      document.getElementById('origSize').textContent=`${origW}×${origH}px`;
+      document.getElementById('resizeScale').value=100;
+      document.getElementById('rsv').textContent='100%';
+      document.getElementById('scaledSize').textContent=`${origW}×${origH}px`;
+      processImage();
+    };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(f);
+}
+
+function nearestColor(r,g,b){
+  let best=null,bestD=Infinity;
+  for(const p of PALETTE){
+    const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
+    if(d<bestD){bestD=d;best=p;}
+  }
+  return best;
+}
+
+function processImage(){
+  if(!origImg)return;
+  const cxN=parseInt(document.getElementById('cx').value);
+  const cyN=parseInt(document.getElementById('cy').value);
+  const dither=document.getElementById('dither').value;
+  const flip=document.getElementById('flipH').checked;
+  const pct=parseInt(document.getElementById('resizeScale').value)/100;
+  pixelW=cxN*CELL;pixelH=cyN*CELL;
+
+  const srcW=Math.max(1,Math.round(origW*pct));
+  const srcH=Math.max(1,Math.round(origH*pct));
+  const src=document.createElement('canvas');
+  src.width=srcW;src.height=srcH;
+  const sc=src.getContext('2d');
+  sc.imageSmoothingEnabled=true;sc.imageSmoothingQuality='high';
+  sc.drawImage(origImg,0,0,srcW,srcH);
+
+  const tmp=document.createElement('canvas');
+  tmp.width=pixelW;tmp.height=pixelH;
+  const tc=tmp.getContext('2d');
+  if(flip){tc.save();tc.translate(pixelW,0);tc.scale(-1,1);}
+  tc.imageSmoothingEnabled=true;tc.imageSmoothingQuality='high';
+  tc.drawImage(src,0,0,pixelW,pixelH);
+  if(flip)tc.restore();
+
+  let imd=tc.getImageData(0,0,pixelW,pixelH);
+  if(dither==='floyd')imd=floydDither(imd);
+  else if(dither==='ordered')imd=orderedDither(imd);
+
+  blockMap=[];
+  const d=imd.data;
+  for(let y=0;y<pixelH;y++){
+    blockMap[y]=[];
+    for(let x=0;x<pixelW;x++){
+      const i=(y*pixelW+x)*4;
+      blockMap[y][x]=nearestColor(d[i],d[i+1],d[i+2]);
+    }
+  }
+
+  SCALE=Math.max(1,Math.min(16,Math.floor(720/Math.max(pixelW,pixelH))));
+  mc.width=pixelW*SCALE;mc.height=pixelH*SCALE;
+  oc.width=pixelW*SCALE;oc.height=pixelH*SCALE;
+
+  // 픽셀 그리기
+  for(let y=0;y<pixelH;y++)
+    for(let x=0;x<pixelW;x++){
+      const b=blockMap[y][x];
+      ctx.fillStyle=`rgb(${b.r},${b.g},${b.b})`;
+      ctx.fillRect(x*SCALE,y*SCALE,SCALE,SCALE);
+    }
+  drawOverlay();
+  buildDownloadPanel(cxN,cyN);
+  document.getElementById('canvasPanel').style.display='block';
+  document.getElementById('dlPanel').style.display='block';
+}
+
+function drawOverlay(){
+  octx.clearRect(0,0,oc.width,oc.height);
+  const showGrid  =document.getElementById('showGrid').checked;
+  const showBorder=document.getElementById('showBorder').checked;
+  const showLabel =document.getElementById('showLabel').checked;
+  const subDiv    =parseInt(document.getElementById('subGrid').value);
+  const cxN=parseInt(document.getElementById('cx').value);
+  const cyN=parseInt(document.getElementById('cy').value);
+
+  // 픽셀 그리드
+  if(showGrid){
+    octx.strokeStyle='rgba(0,0,0,0.1)';octx.lineWidth=0.5;
+    for(let x=0;x<=pixelW;x++){octx.beginPath();octx.moveTo(x*SCALE,0);octx.lineTo(x*SCALE,pixelH*SCALE);octx.stroke();}
+    for(let y=0;y<=pixelH;y++){octx.beginPath();octx.moveTo(0,y*SCALE);octx.lineTo(pixelW*SCALE,y*SCALE);octx.stroke();}
+  }
+
+  // 보조 그리드
+  if(subDiv>0){
+    const step=CELL/subDiv;
+    octx.save();
+    octx.strokeStyle='rgba(80,140,255,0.55)';
+    octx.lineWidth=1;octx.setLineDash([3,3]);
+    for(let gy=0;gy<cyN;gy++)
+      for(let s=1;s<subDiv;s++){
+        const py=(gy*CELL+s*step)*SCALE;
+        octx.beginPath();octx.moveTo(0,py);octx.lineTo(pixelW*SCALE,py);octx.stroke();
+      }
+    for(let gx=0;gx<cxN;gx++)
+      for(let s=1;s<subDiv;s++){
+        const px=(gx*CELL+s*step)*SCALE;
+        octx.beginPath();octx.moveTo(px,0);octx.lineTo(px,pixelH*SCALE);octx.stroke();
+      }
+    if(SCALE>=4){
+      const fs=Math.max(8,Math.min(11,SCALE*step/4));
+      octx.font=`bold ${fs}px system-ui,sans-serif`;
+      octx.textAlign='left';octx.textBaseline='top';
+      for(let gy=0;gy<cyN;gy++)
+        for(let gx=0;gx<cxN;gx++)
+          for(let sy=0;sy<subDiv;sy++)
+            for(let sx=0;sx<subDiv;sx++){
+              const px=(gx*CELL+sx*step)*SCALE+2;
+              const py=(gy*CELL+sy*step)*SCALE+2;
+              octx.fillStyle='rgba(0,0,0,0.35)';
+              octx.fillText(`${sx+1},${sy+1}`,px+1,py+1);
+              octx.fillStyle='rgba(80,140,255,0.9)';
+              octx.fillText(`${sx+1},${sy+1}`,px,py);
+            }
+    }
+    octx.restore();
+  }
+
+  // 색상 이름
+  if(showLabel&&SCALE>=10){
+    octx.textAlign='center';octx.textBaseline='middle';
+    const fs=Math.max(6,Math.min(9,SCALE-4));
+    for(let y=0;y<pixelH;y++)
+      for(let x=0;x<pixelW;x++){
+        const b=blockMap[y][x];
+        const lum=0.299*b.r+0.587*b.g+0.114*b.b;
+        octx.fillStyle=lum>128?'rgba(0,0,0,0.8)':'rgba(255,255,255,0.9)';
+        octx.font=`${fs}px system-ui,sans-serif`;
+        octx.fillText(b.name.length>5?b.name.slice(0,4)+'…':b.name,(x+0.5)*SCALE,(y+0.5)*SCALE);
+      }
+  }
+
+  // 캔버스 경계
+  if(showBorder){
+    octx.strokeStyle='rgba(255,100,0,0.9)';octx.lineWidth=2;octx.setLineDash([]);
+    for(let gx=0;gx<=cxN;gx++){octx.beginPath();octx.moveTo(gx*CELL*SCALE,0);octx.lineTo(gx*CELL*SCALE,pixelH*SCALE);octx.stroke();}
+    for(let gy=0;gy<=cyN;gy++){octx.beginPath();octx.moveTo(0,gy*CELL*SCALE);octx.lineTo(pixelW*SCALE,gy*CELL*SCALE);octx.stroke();}
+    octx.font='500 11px system-ui,sans-serif';octx.textAlign='left';octx.textBaseline='top';
+    for(let gy=0;gy<cyN;gy++)
+      for(let gx=0;gx<cxN;gx++){
+        octx.fillStyle='rgba(255,100,0,0.95)';
+        octx.fillText(`캔버스 ${gy*cxN+gx+1}`,gx*CELL*SCALE+4,gy*CELL*SCALE+4);
+      }
+  }
+}
+
+// ── 툴팁: mc(메인 캔버스)에 이벤트 — oc는 pointer-events:none이라 이벤트 못 받음
+mc.addEventListener('mousemove',e=>{
+  if(!blockMap)return;
+  const rect=mc.getBoundingClientRect();
+  // getBoundingClientRect 기준으로 정확히 계산 (스크롤·zoom 대응)
+  const scaleX=mc.width/rect.width;
+  const scaleY=mc.height/rect.height;
+  const mx=(e.clientX-rect.left)*scaleX;
+  const my=(e.clientY-rect.top)*scaleY;
+  const px=Math.floor(mx/SCALE);
+  const py=Math.floor(my/SCALE);
+  if(px<0||px>=pixelW||py<0||py>=pixelH){tip.style.display='none';return;}
+
+  const b=blockMap[py][px];
+  const cxN=parseInt(document.getElementById('cx').value);
+  const canvasIdx=Math.floor(py/CELL)*cxN+Math.floor(px/CELL)+1;
+
+  document.getElementById('ttSwatch').style.background=`rgb(${b.r},${b.g},${b.b})`;
+  document.getElementById('ttName').textContent=b.name;
+  document.getElementById('ttShade').textContent=b.shade;
+  document.getElementById('ttHex').textContent=b.hex.toUpperCase();
+  document.getElementById('ttCoord').textContent=
+    `캔버스 ${canvasIdx}  ·  캔버스 내 (${(px%CELL)+1}, ${(py%CELL)+1})  ·  전체 (${px+1}, ${py+1})`;
+
+  tip.style.display='block';
+  let tx=e.clientX+16, ty=e.clientY-12;
+  if(tx+230>window.innerWidth)  tx=e.clientX-230;
+  if(ty+90 >window.innerHeight) ty=e.clientY-80;
+  tip.style.left=tx+'px';
+  tip.style.top =ty+'px';
+});
+mc.addEventListener('mouseleave',()=>tip.style.display='none');
+
+// 다운로드
+function buildDownloadPanel(cxN,cyN){
+  const grid=document.getElementById('dlGrid');grid.innerHTML='';
+  for(let gy=0;gy<cyN;gy++)
+    for(let gx=0;gx<cxN;gx++){
+      const idx=gy*cxN+gx+1;
+      const btn=document.createElement('button');
+      btn.textContent=`캔버스 ${idx} (${gx+1}열·${gy+1}행)`;
+      btn.style.textAlign='left';
+      btn.onclick=((_gx,_gy,_i)=>()=>downloadCanvas(_gx,_gy,_i))(gx,gy,idx);
+      grid.appendChild(btn);
+    }
+}
+function downloadCanvas(gx,gy,idx){
+  const tmp=document.createElement('canvas');tmp.width=CELL;tmp.height=CELL;
+  const tc=tmp.getContext('2d');
+  const ox=gx*CELL,oy=gy*CELL;
+  for(let y=0;y<CELL;y++)
+    for(let x=0;x<CELL;x++){
+      const b=blockMap[oy+y][ox+x];
+      tc.fillStyle=`rgb(${b.r},${b.g},${b.b})`;tc.fillRect(x,y,1,1);
+    }
+  const link=document.createElement('a');
+  link.download=`artmap_canvas_${idx}.png`;link.href=tmp.toDataURL();link.click();
+}
+function downloadAll(){
+  const tmp=document.createElement('canvas');tmp.width=pixelW;tmp.height=pixelH;
+  const tc=tmp.getContext('2d');
+  for(let y=0;y<pixelH;y++)
+    for(let x=0;x<pixelW;x++){
+      const b=blockMap[y][x];
+      tc.fillStyle=`rgb(${b.r},${b.g},${b.b})`;tc.fillRect(x,y,1,1);
+    }
+  const link=document.createElement('a');
+  link.download='artmap_full.png';link.href=tmp.toDataURL();link.click();
+}
+
+// 디더링
+function floydDither(imd){
+  const d=imd.data,w=imd.width,h=imd.height;
+  const err=new Float32Array(w*h*3);
+  for(let y=0;y<h;y++)
+    for(let x=0;x<w;x++){
+      const i=(y*w+x)*4;
+      const or=Math.max(0,Math.min(255,d[i]+err[(y*w+x)*3]));
+      const og=Math.max(0,Math.min(255,d[i+1]+err[(y*w+x)*3+1]));
+      const ob=Math.max(0,Math.min(255,d[i+2]+err[(y*w+x)*3+2]));
+      const bl=nearestColor(or,og,ob);
+      d[i]=bl.r;d[i+1]=bl.g;d[i+2]=bl.b;
+      const er=or-bl.r,eg=og-bl.g,eb=ob-bl.b;
+      function sp(nx,ny,f){if(nx<0||nx>=w||ny<0||ny>=h)return;const j=(ny*w+nx)*3;err[j]+=er*f;err[j+1]+=eg*f;err[j+2]+=eb*f;}
+      sp(x+1,y,7/16);sp(x-1,y+1,3/16);sp(x,y+1,5/16);sp(x+1,y+1,1/16);
+    }
+  return imd;
+}
+function orderedDither(imd){
+  const mat=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+  const d=imd.data,w=imd.width,h=imd.height;
+  for(let y=0;y<h;y++)
+    for(let x=0;x<w;x++){
+      const i=(y*w+x)*4;
+      const t=(mat[y%4][x%4]/16-0.5)*60;
+      const bl=nearestColor(
+        Math.max(0,Math.min(255,d[i]+t)),
+        Math.max(0,Math.min(255,d[i+1]+t)),
+        Math.max(0,Math.min(255,d[i+2]+t))
+      );
+      d[i]=bl.r;d[i+1]=bl.g;d[i+2]=bl.b;
+    }
+  return imd;
+}
+</script>
+</body>
+</html>
