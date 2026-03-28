@@ -60,7 +60,7 @@ input[type=range]{width:80px;}
 .tool-body strong{color:#1a1a1a;font-size:11px;}
 .help-btn{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#e8e8e8;color:#555;font-size:9px;font-weight:700;cursor:pointer;border:none;margin-left:3px;vertical-align:middle;}
 .help-btn:hover{background:#ccc;}
-.chandle{position:absolute;width:10px;height:10px;background:#fff;border:2px solid #1a6ef5;border-radius:2px;}
+.chandle{position:absolute;width:10px;height:10px;background:#fff;border:2px solid #1a6ef5;border-radius:2px;z-index:10;}
 .dl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:5px;}
 
 /* 하단: 팔레트 바 */
@@ -189,21 +189,21 @@ input[type=range]{width:80px;}
               <button onclick="cropApply()" style="font-size:11px;padding:3px 8px;background:#1a6ef5;color:#fff;border:none;border-radius:6px;">적용</button>
             </div>
           </div>
-          <div style="position:relative;display:block;max-width:100%;border-radius:8px;border:1px solid #ddd;overflow:hidden;user-select:none;" id="cropContainer">
+          <div style="position:relative;display:inline-block;max-width:100%;border-radius:8px;border:1px solid #ddd;overflow:hidden;user-select:none;" id="cropContainer">
             <canvas id="cropCanvas" style="display:block;width:100%;height:auto;"></canvas>
             <div id="cmTop"    style="position:absolute;left:0;right:0;top:0;background:rgba(0,0,0,0.45);pointer-events:none;"></div>
             <div id="cmBottom" style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);pointer-events:none;"></div>
             <div id="cmLeft"   style="position:absolute;top:0;bottom:0;left:0;background:rgba(0,0,0,0.45);pointer-events:none;"></div>
             <div id="cmRight"  style="position:absolute;top:0;bottom:0;right:0;background:rgba(0,0,0,0.45);pointer-events:none;"></div>
             <div id="cropBox" style="position:absolute;border:2px solid #1a6ef5;box-sizing:border-box;cursor:move;display:none;">
-              <div class="chandle" data-dir="nw" style="top:-5px;left:-5px;cursor:nw-resize;"></div>
-              <div class="chandle" data-dir="ne" style="top:-5px;right:-5px;cursor:ne-resize;"></div>
-              <div class="chandle" data-dir="sw" style="bottom:-5px;left:-5px;cursor:sw-resize;"></div>
-              <div class="chandle" data-dir="se" style="bottom:-5px;right:-5px;cursor:se-resize;"></div>
-              <div class="chandle" data-dir="n" style="top:-5px;left:50%;transform:translateX(-50%);cursor:n-resize;"></div>
-              <div class="chandle" data-dir="s" style="bottom:-5px;left:50%;transform:translateX(-50%);cursor:s-resize;"></div>
-              <div class="chandle" data-dir="w" style="left:-5px;top:50%;transform:translateY(-50%);cursor:w-resize;"></div>
-              <div class="chandle" data-dir="e" style="right:-5px;top:50%;transform:translateY(-50%);cursor:e-resize;"></div>
+              <div class="chandle" data-dir="nw" style="top:0;left:0;cursor:nw-resize;"></div>
+              <div class="chandle" data-dir="ne" style="top:0;right:0;cursor:ne-resize;"></div>
+              <div class="chandle" data-dir="sw" style="bottom:0;left:0;cursor:sw-resize;"></div>
+              <div class="chandle" data-dir="se" style="bottom:0;right:0;cursor:se-resize;"></div>
+              <div class="chandle" data-dir="n" style="top:0;left:50%;transform:translateX(-50%);cursor:n-resize;"></div>
+              <div class="chandle" data-dir="s" style="bottom:0;left:50%;transform:translateX(-50%);cursor:s-resize;"></div>
+              <div class="chandle" data-dir="w" style="left:0;top:50%;transform:translateY(-50%);cursor:w-resize;"></div>
+              <div class="chandle" data-dir="e" style="right:0;top:50%;transform:translateY(-50%);cursor:e-resize;"></div>
             </div>
           </div>
           <div style="margin-top:5px;font-size:11px;color:#888;" id="cropInfo">선택 영역: 전체</div>
@@ -389,11 +389,18 @@ const cropBox=document.getElementById('cropBox');
 const cropInfo=document.getElementById('cropInfo');
 function drawCropPreview(){
   if(!origImg)return;
-  const cW=cropContainer.clientWidth||340;
-  cropImgScale=cW/origW;
-  cropCanvas.width=origW;cropCanvas.height=origH;
-  cropCanvas.style.width=cW+'px';cropCanvas.style.height=Math.round(origH*cropImgScale)+'px';
-  cropCtx.drawImage(origImg,0,0,origW,origH);
+  requestAnimationFrame(()=>{
+    const maxW=cropContainer.clientWidth||320;
+    const maxH=200;
+    const scale=Math.min(maxW/origW, maxH/origH, 1);
+    cropImgScale=scale;
+    const dispW=Math.round(origW*scale);
+    const dispH=Math.round(origH*scale);
+    cropCanvas.width=origW;cropCanvas.height=origH;
+    cropCanvas.style.width=dispW+'px';cropCanvas.style.height=dispH+'px';
+    cropCtx.drawImage(origImg,0,0,origW,origH);
+    cropReset();updateCropUI();
+  });
 }
 function updateCropUI(){
   const s=cropImgScale;
@@ -410,7 +417,9 @@ function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
 function getMousePos(e){
   const rect=cropCanvas.getBoundingClientRect();
   const cx=e.touches?e.touches[0].clientX:e.clientX,cy=e.touches?e.touches[0].clientY:e.clientY;
-  return{x:clamp((cx-rect.left)/cropImgScale,0,origW),y:clamp((cy-rect.top)/cropImgScale,0,origH)};
+  const rx=clamp(cx-rect.left,0,rect.width);
+  const ry=clamp(cy-rect.top,0,rect.height);
+  return{x:rx/cropImgScale,y:ry/cropImgScale};
 }
 document.querySelectorAll('.chandle').forEach(h=>{
   h.addEventListener('mousedown',e=>{e.stopPropagation();e.preventDefault();dragMode=h.dataset.dir;const m=getMousePos(e);dragStartMouse={x:m.x,y:m.y};dragStartCrop={x:cropX,y:cropY,w:cropW,h:cropH};});
@@ -449,7 +458,8 @@ function loadFile(f){
     origImg=img;origW=img.naturalWidth;origH=img.naturalHeight;
     uz.textContent=`✅ ${f.name} (${origW}×${origH}px)`;
     document.getElementById('cropPanel').style.display='block';
-    drawCropPreview();cropReset();updateCropUI();processImage();
+    drawCropPreview();
+    processImage();
   };img.src=ev.target.result;};r.readAsDataURL(f);
 }
 
