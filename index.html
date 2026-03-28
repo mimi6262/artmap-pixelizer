@@ -5,41 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>제티의 픽셀화 도구</title>
 <!--
-  버전: v2.0
-  v1.9 - 아이템 명칭 전면 수정
-  v2.0 - 2분할 레이아웃 (좌: 미리보기, 우: 설정/업로드/팔레트/다운로드)
-         미리보기 클릭 확대 (1.2배 단계, 원래대로 버튼)
+  버전: v2.1
+  v2.0 - 2분할 레이아웃, 확대/축소, 크롭
+  v2.1 - 3분할 레이아웃 (좌:미리보기, 우:설정, 하단:팔레트 브라우저)
 -->
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:system-ui,sans-serif;background:#f0f0f0;color:#1a1a1a;height:100vh;overflow:hidden;}
 
-/* 2분할 */
-.layout{display:grid;grid-template-columns:1fr 380px;height:100vh;gap:0;}
+.layout{display:grid;grid-template-columns:1fr 360px;grid-template-rows:1fr 128px;height:100vh;}
 
 /* 좌: 미리보기 */
-.left-col{background:#1a1a1a;display:flex;flex-direction:column;overflow:hidden;}
+.left-col{background:#1a1a1a;display:flex;flex-direction:column;overflow:hidden;grid-row:1/2;grid-column:1/2;}
 .left-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#111;flex-shrink:0;}
 .left-header h1{font-size:14px;font-weight:500;color:#eee;}
 .left-header .version{font-size:10px;color:#666;}
-.zoom-bar{display:flex;align-items:center;gap:8px;}
+.zoom-bar{display:flex;align-items:center;gap:6px;}
 .zoom-btn{font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid #444;background:transparent;color:#ccc;cursor:pointer;}
 .zoom-btn:hover{background:#333;color:#fff;}
 .zoom-btn.active{background:#1a6ef5;border-color:#1a6ef5;color:#fff;}
-.zoom-label{font-size:11px;color:#888;min-width:36px;text-align:center;}
+.zoom-label{font-size:11px;color:#888;min-width:34px;text-align:center;}
 .canvas-area{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:flex-start;padding:12px;position:relative;}
 .canvas-wrap{position:relative;display:inline-block;}
-#mc{display:block;image-rendering:pixelated;cursor:zoom-in;transition:none;}
-#mc.zoomed{cursor:zoom-out;}
+#mc{display:block;image-rendering:pixelated;cursor:zoom-in;}
 #oc{position:absolute;top:0;left:0;pointer-events:none;image-rendering:pixelated;}
 .no-image{color:#555;font-size:13px;margin:auto;text-align:center;line-height:2;}
 .no-image span{font-size:28px;display:block;margin-bottom:8px;}
 
-/* 우: 패널 */
-.right-col{background:#f5f5f5;overflow-y:auto;border-left:1px solid #ddd;}
+/* 우: 설정 패널 */
+.right-col{background:#f5f5f5;overflow-y:auto;border-left:1px solid #ddd;grid-row:1/3;grid-column:2/3;}
 .right-inner{padding:12px;}
 .panel{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:12px;margin-bottom:10px;}
-.panel-title{font-size:12px;font-weight:600;color:#444;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.panel-title{font-size:12px;font-weight:600;color:#444;margin-bottom:10px;}
 .slabel{font-size:11px;color:#666;margin-bottom:6px;}
 .upload-zone{border:1.5px dashed #bbb;border-radius:10px;padding:1.2rem;text-align:center;cursor:pointer;color:#888;font-size:13px;}
 .upload-zone:hover{background:#f9f9f9;}
@@ -55,6 +52,53 @@ select{font-size:12px;padding:4px 7px;border-radius:7px;border:1px solid #ddd;ba
 input[type=range]{width:80px;}
 .toggle{display:flex;align-items:center;gap:5px;font-size:12px;color:#555;cursor:pointer;}
 .toggle-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+.tool-help{margin-top:10px;border-top:1px solid #eee;padding-top:10px;}
+.tool-help-title{font-size:11px;font-weight:600;color:#444;margin-bottom:6px;}
+.tool-row{display:flex;gap:8px;align-items:flex-start;margin-bottom:5px;font-size:11px;color:#555;line-height:1.6;}
+.tool-icon{font-size:14px;flex-shrink:0;width:20px;text-align:center;}
+.tool-body{flex:1;}
+.tool-body strong{color:#1a1a1a;font-size:11px;}
+.help-btn{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#e8e8e8;color:#555;font-size:9px;font-weight:700;cursor:pointer;border:none;margin-left:3px;vertical-align:middle;}
+.help-btn:hover{background:#ccc;}
+.chandle{position:absolute;width:10px;height:10px;background:#fff;border:2px solid #1a6ef5;border-radius:2px;}
+.dl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:5px;}
+
+/* 하단: 팔레트 바 */
+.palette-bar{grid-row:2/3;grid-column:1/2;background:#fff;border-top:1px solid #ddd;display:flex;align-items:center;gap:10px;padding:0 14px;overflow:visible;position:relative;z-index:100;}
+.pb-label{font-size:11px;font-weight:600;color:#666;white-space:nowrap;flex-shrink:0;}
+
+/* 팔레트 드롭다운 */
+.pb-select-wrap{position:relative;flex-shrink:0;}
+.pb-trigger{display:flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid #ddd;border-radius:7px;background:#fff;cursor:pointer;font-size:12px;user-select:none;min-width:150px;}
+.pb-trigger:hover{border-color:#1a6ef5;}
+.pb-trigger.open{border-color:#1a6ef5;border-radius:7px 7px 0 0;}
+.pb-trigger-dot{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,0.12);flex-shrink:0;background:#e8e8e8;}
+.pb-trigger-text{flex:1;color:#444;white-space:nowrap;}
+.pb-trigger-text.placeholder{color:#aaa;}
+.pb-trigger-arrow{font-size:9px;color:#999;flex-shrink:0;transition:transform 0.15s;}
+.pb-trigger.open .pb-trigger-arrow{transform:rotate(180deg);}
+.pb-dropdown{display:none;position:absolute;left:0;right:0;bottom:100%;border:1px solid #1a6ef5;border-bottom:none;border-radius:7px 7px 0 0;background:#fff;z-index:400;max-height:240px;overflow-y:auto;box-shadow:0 -4px 12px rgba(0,0,0,0.12);}
+.pb-dropdown.open{display:block;}
+.pb-option{display:flex;align-items:center;gap:7px;padding:5px 9px;cursor:pointer;font-size:12px;color:#333;}
+.pb-option:hover{background:#f0f5ff;}
+.pb-option.selected{background:#e8f0ff;font-weight:600;color:#1a6ef5;}
+.pb-option-dot{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,0.1);flex-shrink:0;}
+
+/* 명암 라디오 */
+.pb-radios{display:flex;gap:4px;flex-shrink:0;}
+.pb-radio-label{display:flex;align-items:center;gap:4px;font-size:11px;color:#444;cursor:pointer;padding:4px 8px;border-radius:6px;border:1px solid #ddd;background:#fafafa;white-space:nowrap;}
+.pb-radio-label:hover{background:#f0f5ff;border-color:#1a6ef5;}
+.pb-radio-label input{display:none;}
+.pb-radio-label.active{background:#e8f0ff;border-color:#1a6ef5;color:#1a6ef5;font-weight:600;}
+
+/* 4단계 색상 카드 */
+.pb-shade-cards{display:flex;gap:5px;flex:1;overflow:hidden;}
+.shade-card{border-radius:7px;overflow:hidden;border:1px solid #e0e0e0;flex:1;min-width:0;}
+.shade-card.highlight{border:2px solid #1a6ef5;}
+.shade-swatch{height:42px;}
+.shade-info{padding:4px 5px;background:#fff;}
+.shade-info .s-label{font-size:9px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;}
+.shade-info .s-hex{font-size:9px;color:#999;font-family:monospace;display:block;}
 
 /* 툴팁 */
 #tooltip{position:fixed;display:none;background:rgba(15,15,15,0.94);color:#fff;font-size:12px;padding:9px 13px;border-radius:10px;pointer-events:none;z-index:9999;line-height:1.75;white-space:nowrap;box-shadow:0 3px 14px rgba(0,0,0,0.38);}
@@ -65,10 +109,6 @@ input[type=range]{width:80px;}
 .tt-shade{font-size:11px;color:#ffd080;}
 .tt-hex{font-size:11px;color:#7eb8ff;font-family:monospace;}
 .tt-coord{font-size:10px;color:#666;margin-top:1px;}
-
-/* 도움말 버튼 */
-.help-btn{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#e8e8e8;color:#555;font-size:9px;font-weight:700;cursor:pointer;border:none;margin-left:3px;vertical-align:middle;flex-shrink:0;}
-.help-btn:hover{background:#ccc;}
 
 /* 모달 */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;align-items:center;justify-content:center;}
@@ -85,53 +125,10 @@ input[type=range]{width:80px;}
 .tag-rec{background:#e8f3ff;color:#1a6ef5;}
 .tag-art{background:#fff3e0;color:#e07b00;}
 .tag-simple{background:#f0f0f0;color:#555;}
-
-/* 인게임 도구 도움말 */
-.tool-help{margin-top:10px;border-top:1px solid #eee;padding-top:10px;}
-.tool-help-title{font-size:11px;font-weight:600;color:#444;margin-bottom:6px;}
-.tool-row{display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;font-size:11px;color:#555;line-height:1.6;}
-.tool-icon{font-size:15px;flex-shrink:0;width:20px;text-align:center;}
-.tool-body{flex:1;}
-.tool-body strong{color:#1a1a1a;font-size:11px;}
-
-/* 팔레트 브라우저 */
-.pb-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
-.pb-custom-select{position:relative;flex:1;min-width:160px;}
-.pb-trigger{display:flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid #ddd;border-radius:7px;background:#fff;cursor:pointer;font-size:12px;user-select:none;}
-.pb-trigger:hover{border-color:#1a6ef5;}
-.pb-trigger.open{border-color:#1a6ef5;border-radius:7px 7px 0 0;}
-.pb-trigger-dot{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,0.12);flex-shrink:0;background:#e8e8e8;}
-.pb-trigger-text{flex:1;color:#444;}
-.pb-trigger-text.placeholder{color:#aaa;}
-.pb-trigger-arrow{font-size:9px;color:#999;flex-shrink:0;transition:transform 0.15s;}
-.pb-trigger.open .pb-trigger-arrow{transform:rotate(180deg);}
-.pb-dropdown{display:none;position:absolute;left:0;right:0;top:100%;border:1px solid #1a6ef5;border-top:none;border-radius:0 0 7px 7px;background:#fff;z-index:300;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.12);}
-.pb-dropdown.open{display:block;}
-.pb-option{display:flex;align-items:center;gap:7px;padding:5px 9px;cursor:pointer;font-size:12px;color:#333;}
-.pb-option:hover{background:#f0f5ff;}
-.pb-option.selected{background:#e8f0ff;font-weight:600;color:#1a6ef5;}
-.pb-option-dot{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,0.1);flex-shrink:0;}
-.pb-radios{display:flex;gap:4px;flex-wrap:wrap;}
-.pb-radio-label{display:flex;align-items:center;gap:4px;font-size:11px;color:#444;cursor:pointer;padding:4px 8px;border-radius:6px;border:1px solid #ddd;background:#fafafa;transition:all 0.12s;}
-.pb-radio-label:hover{background:#f0f5ff;border-color:#1a6ef5;}
-.pb-radio-label input{display:none;}
-.pb-radio-label.active{background:#e8f0ff;border-color:#1a6ef5;color:#1a6ef5;font-weight:600;}
-.shade-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;}
-.shade-card{border-radius:8px;overflow:hidden;border:1px solid #e0e0e0;}
-.shade-card.highlight{border:2px solid #1a6ef5;box-shadow:0 0 0 2px #c0d8ff;}
-.shade-swatch{height:40px;}
-.shade-info{padding:5px 6px;background:#fff;}
-.shade-info .s-label{font-size:9px;color:#888;}
-.shade-info .s-hex{font-size:9px;color:#999;font-family:monospace;}
-.shade-info .s-item{font-size:9px;color:#bbb;}
-
-/* 크롭 핸들 */
-.chandle{position:absolute;width:10px;height:10px;background:#fff;border:2px solid #1a6ef5;border-radius:2px;}
 </style>
 </head>
 <body>
 
-<!-- 툴팁 -->
 <div id="tooltip">
   <div class="tt-row"><div class="tt-swatch" id="ttSwatch"></div><span class="tt-name" id="ttName"></span></div>
   <div><span class="tt-shade" id="ttShade"></span>&nbsp;&nbsp;<span class="tt-hex" id="ttHex"></span></div>
@@ -139,7 +136,6 @@ input[type=range]{width:80px;}
   <div class="tt-coord" id="ttCoord"></div>
 </div>
 
-<!-- 색번짐 모달 -->
 <div class="modal-bg" id="ditherModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('ditherModal')">✕</button>
@@ -152,15 +148,14 @@ input[type=range]{width:80px;}
   </div>
 </div>
 
-<!-- 2분할 레이아웃 -->
 <div class="layout">
 
-  <!-- ── 좌: 미리보기 -->
+  <!-- 좌: 미리보기 -->
   <div class="left-col">
     <div class="left-header">
       <div>
         <h1>🎨 제티의 픽셀화 도구</h1>
-        <div class="version">v2.0 — 61종 염료 × 4단계 명암</div>
+        <div class="version">v2.1 — 61종 염료 × 4단계 명암</div>
       </div>
       <div class="zoom-bar" id="zoomBar" style="display:none;">
         <button class="zoom-btn" onclick="zoomStep(-1)">−</button>
@@ -178,17 +173,14 @@ input[type=range]{width:80px;}
     </div>
   </div>
 
-  <!-- ── 우: 설정 패널들 -->
+  <!-- 우: 설정 -->
   <div class="right-col">
     <div class="right-inner">
 
-      <!-- 업로드 -->
       <div class="panel">
         <div class="panel-title">📁 이미지 업로드</div>
         <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fi').click()">클릭하거나 드래그해서 이미지 업로드 (PNG, JPG)</div>
         <input type="file" id="fi" accept="image/*" style="display:none">
-
-        <!-- 크롭 패널 -->
         <div id="cropPanel" style="display:none;margin-top:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
             <div class="slabel" style="margin:0;">영역 선택 — 모서리·가장자리 드래그로 조절</div>
@@ -218,7 +210,6 @@ input[type=range]{width:80px;}
         </div>
       </div>
 
-      <!-- 설정 -->
       <div class="panel">
         <div class="panel-title">⚙️ 설정</div>
         <div class="controls">
@@ -257,8 +248,6 @@ input[type=range]{width:80px;}
           <label class="toggle"><input type="checkbox" id="showLabel"> 색상 이름</label>
           <label class="toggle"><input type="checkbox" id="flipH"> 좌우반전</label>
         </div>
-
-        <!-- 인게임 도구 도움말 -->
         <div class="tool-help">
           <div class="tool-help-title">🧰 인게임 편의 도구</div>
           <div class="tool-row"><span class="tool-icon">🪣</span><div class="tool-body"><strong>양동이</strong> — 물감을 한 번에 채울 수 있습니다.</div></div>
@@ -269,29 +258,6 @@ input[type=range]{width:80px;}
         </div>
       </div>
 
-      <!-- 팔레트 브라우저 -->
-      <div class="panel">
-        <div class="panel-title">🎨 팔레트 브라우저</div>
-        <div class="pb-row">
-          <div class="pb-custom-select" id="pbCustomSelect">
-            <div class="pb-trigger" id="pbTrigger" onclick="toggleDropdown()">
-              <div class="pb-trigger-dot" id="pbTriggerDot"></div>
-              <span class="pb-trigger-text placeholder" id="pbTriggerText">— 재료 선택 —</span>
-              <span class="pb-trigger-arrow">▼</span>
-            </div>
-            <div class="pb-dropdown" id="pbDropdown"></div>
-          </div>
-        </div>
-        <div class="pb-radios" id="pbRadios">
-          <label class="pb-radio-label" id="rl0" onclick="setShade(0)"><input type="radio" name="shade"> 🪶 밝게</label>
-          <label class="pb-radio-label active" id="rl1" onclick="setShade(1)"><input type="radio" name="shade" checked> 기본</label>
-          <label class="pb-radio-label" id="rl2" onclick="setShade(2)"><input type="radio" name="shade"> 🪨 석탄 1번</label>
-          <label class="pb-radio-label" id="rl3" onclick="setShade(3)"><input type="radio" name="shade"> 🪨🪨 석탄 2번</label>
-        </div>
-        <div class="shade-row" id="shadeRow" style="display:none;"></div>
-      </div>
-
-      <!-- 다운로드 -->
       <div class="panel" id="dlPanel" style="display:none;">
         <div class="panel-title">💾 다운로드</div>
         <div style="margin-bottom:8px;"><button onclick="downloadAll()" style="width:100%;">전체 합본 다운로드</button></div>
@@ -301,275 +267,193 @@ input[type=range]{width:80px;}
 
     </div>
   </div>
+
+  <!-- 하단: 팔레트 바 -->
+  <div class="palette-bar">
+    <div class="pb-bar-title">🎨 팔레트</div>
+
+    <div class="pb-bar-select" id="pbCustomSelect">
+      <div class="pb-trigger" id="pbTrigger" onclick="toggleDropdown()">
+        <div class="pb-trigger-dot" id="pbTriggerDot"></div>
+        <span class="pb-trigger-text placeholder" id="pbTriggerText">— 재료 선택 —</span>
+        <span class="pb-trigger-arrow">▼</span>
+      </div>
+      <div class="pb-dropdown" id="pbDropdown"></div>
+    </div>
+
+    <div class="pb-radios">
+      <label class="pb-radio-label" id="rl0" onclick="setShade(0)"><input type="radio" name="shade"> 🪶 밝게</label>
+      <label class="pb-radio-label active" id="rl1" onclick="setShade(1)"><input type="radio" name="shade" checked> 기본</label>
+      <label class="pb-radio-label" id="rl2" onclick="setShade(2)"><input type="radio" name="shade"> 🪨 석탄 1번</label>
+      <label class="pb-radio-label" id="rl3" onclick="setShade(3)"><input type="radio" name="shade"> 🪨🪨 석탄 2번</label>
+    </div>
+
+    <div class="pb-shade-cards" id="shadeCardsBar"></div>
+  </div>
+
 </div>
 
 <script>
-const CELL = 32;
-
-const DYE_DATA = [
-  ["생 철광석",            "#cfaf9f","#b29688","#917b70","#6d5c54"],
-  ["분홍 염료",            "#ef7ea3","#ce6c8c","#a85873","#7e4256"],
-  ["비트",                 "#93566b","#7e4a5c","#683c4b","#4d2d38"],
-  ["진홍빛 자루",          "#794857","#683d4a","#55323d","#3f262d"],
-  ["보라 염료",            "#9e9efc","#8888d9","#6f6fb2","#535385"],
-  ["자홍 염료",            "#b04bd5","#9740b8","#7c3496","#5d2871"],
-  ["퍼퍼 블록",            "#7e3eb0","#6c3597","#582b7c","#42215d"],
-  ["후렴과",               "#4b3d5b","#40344e","#342a3f","#28202f"],
-  ["뒤틀린 균사",          "#6f6b88","#5f5c76","#4e4b60","#3a3848"],
-  ["파란 염료",            "#324bb0","#2b4097","#24347c","#1b285d"],
-  ["청금석",               "#3f3ffc","#3636d9","#2c2cb2","#212185"],
-  ["청금석 블록",          "#497efc","#3e6dd9","#3359b2","#274285"],
-  ["청금석 광석",          "#5bd8d2","#4ebab5","#3f9894","#2f726f"],
-  ["청록 염료",            "#6597d5","#5782b8","#476b96","#355071"],
-  ["프리즈머린 결정",      "#4b7e97","#406c82","#34586b","#284250"],
-  ["라임 염료",            "#7eca19","#6cae15","#588e11","#426b0d"],
-  ["슬라임볼",             "#7eb037","#6c972f","#587c27","#425d1d"],
-  ["잔디",                 "#667434","#57632c","#475125","#353c1c"],
-  ["초록 염료",            "#657e32","#576c2b","#475824","#35421b"],
-  ["발광 이끼",            "#4b512a","#404524","#34381d","#282a16"],
-  ["에메랄드",             "#00d639","#00b931","#009728","#00711e"],
-  ["참나무 잎",            "#007b00","#006900","#005600","#004000"],
-  ["노란 염료",            "#f4e6a1","#d2c78a","#aca272","#807a55"],
-  ["금 조각",              "#f7eb4c","#d4cb41","#aea635","#827d28"],
-  ["발광석 가루",          "#e2e232","#c3c32b","#9f9f24","#78781b"],
-  ["호박 씨앗",            "#b88324","#9e711f","#815c19","#614513"],
-  ["주황 염료",            "#d57e32","#b86c2b","#965824","#71421b"],
-  ["마그마 크림",          "#9d5124","#87451f","#6f3819","#532a13"],
-  ["달걀",                 "#8d7647","#7a653d","#635331","#4a3e26"],
-  ["수박 씨앗",            "#956c4c","#805d41","#694b35","#4e3828"],
-  ["코코아 콩",            "#7f5530","#6e492a","#5a3b22","#432c19"],
-  ["회백토",               "#6e3821","#654b32","#57402b","#473424"],
-  ["짙은 참나무 원목",     "#35281b","#4b3123","#402a1e","#342318"],
-  ["영혼 모래",            "#281a12","#382923","#30231e","#281c18"],
-  ["숯",                   "#1e1512","#251610","#1f120d","#1a0f0b"],
-  ["벽돌",                 "#130b08","#8c3b2d","#793227","#632a20"],
-  ["거미 눈",              "#4a1f18","#9e4c4d","#884142","#6f3536"],
-  ["사과",                 "#532829","#973232","#822b2b","#6b2424"],
-  ["빨간 염료",            "#501b1b","#fc0000","#d90000","#b20000"],
-  ["진홍빛 네사체",        "#850000","#6f0200","#5f0100","#4e0100"],
-  ["네더 사마귀",          "#3a0100",null,null,null],
-  ["눈",                   "#fcfcfc","#d9d9d9","#b2b2b2","#858585"],
-  ["뼛가루",               "#fcf9f2","#d9d6d1","#b2afaa","#85837f"],
-  ["거미줄",               "#c5c5c5","#a9a9a9","#8a8a8a","#686868"],
-  ["밝은 회색 염료",       "#a5a5a5","#8e8e8e","#747474","#575757"],
-  ["얼음",                 "#a2a6b6","#8b8e9c","#72757f","#555760"],
-  ["회색 염료",            "#979797","#828282","#6b6b6b","#505050"],
-  ["자작나무 통나무",      "#856a61","#735b53","#5e4a44","#463732"],
-  ["화약",                 "#6f6f6f","#5f5f5f","#4e4e4e","#3a3a3a"],
-  ["조약돌 심층암",        "#565b5b","#4a4e4e","#3c3f3f","#2d2f2f"],
-  ["부싯돌",               "#4b4b4b","#404040","#343434","#282828"],
-  ["먹물 주머니",          "#191919","#151515","#111111","#0d0d0d"],
-  ["갈색 버섯",            "#8d7647","#7a653d","#635331","#4a3e26"],
-  ["가스트 눈물",          "#a2a6b6","#8b8e9c","#72757f","#555760"],
-  ["철 조각",              "#c5c5c5","#a9a9a9","#8a8a8a","#686868"],
-  ["뒤틀린 자루",          "#4b7e97","#406c82","#34586b","#284250"],
-  ["뒤틀린 네사체",        "#5bd8d2","#4ebab5","#3f9894","#2f726f"],
-  ["뒤틀린 사마귀 블록",   "#6597d5","#5782b8","#476b96","#355071"],
-  ["균사체",               "#667434","#57632c","#475125","#353c1c"],
-  ["진홍빛 균사",          "#7e4a5c","#683c4b","#4d2d38","#3f262d"],
-  ["독 감자",              "#657e32","#576c2b","#475824","#35421b"],
+const CELL=32;
+const DYE_DATA=[
+  ["생 철광석","#cfaf9f","#b29688","#917b70","#6d5c54"],
+  ["분홍 염료","#ef7ea3","#ce6c8c","#a85873","#7e4256"],
+  ["비트","#93566b","#7e4a5c","#683c4b","#4d2d38"],
+  ["진홍빛 자루","#794857","#683d4a","#55323d","#3f262d"],
+  ["보라 염료","#9e9efc","#8888d9","#6f6fb2","#535385"],
+  ["자홍 염료","#b04bd5","#9740b8","#7c3496","#5d2871"],
+  ["퍼퍼 블록","#7e3eb0","#6c3597","#582b7c","#42215d"],
+  ["후렴과","#4b3d5b","#40344e","#342a3f","#28202f"],
+  ["뒤틀린 균사","#6f6b88","#5f5c76","#4e4b60","#3a3848"],
+  ["파란 염료","#324bb0","#2b4097","#24347c","#1b285d"],
+  ["청금석","#3f3ffc","#3636d9","#2c2cb2","#212185"],
+  ["청금석 블록","#497efc","#3e6dd9","#3359b2","#274285"],
+  ["청금석 광석","#5bd8d2","#4ebab5","#3f9894","#2f726f"],
+  ["청록 염료","#6597d5","#5782b8","#476b96","#355071"],
+  ["프리즈머린 결정","#4b7e97","#406c82","#34586b","#284250"],
+  ["라임 염료","#7eca19","#6cae15","#588e11","#426b0d"],
+  ["슬라임볼","#7eb037","#6c972f","#587c27","#425d1d"],
+  ["잔디","#667434","#57632c","#475125","#353c1c"],
+  ["초록 염료","#657e32","#576c2b","#475824","#35421b"],
+  ["발광 이끼","#4b512a","#404524","#34381d","#282a16"],
+  ["에메랄드","#00d639","#00b931","#009728","#00711e"],
+  ["참나무 잎","#007b00","#006900","#005600","#004000"],
+  ["노란 염료","#f4e6a1","#d2c78a","#aca272","#807a55"],
+  ["금 조각","#f7eb4c","#d4cb41","#aea635","#827d28"],
+  ["발광석 가루","#e2e232","#c3c32b","#9f9f24","#78781b"],
+  ["호박 씨앗","#b88324","#9e711f","#815c19","#614513"],
+  ["주황 염료","#d57e32","#b86c2b","#965824","#71421b"],
+  ["마그마 크림","#9d5124","#87451f","#6f3819","#532a13"],
+  ["달걀","#8d7647","#7a653d","#635331","#4a3e26"],
+  ["수박 씨앗","#956c4c","#805d41","#694b35","#4e3828"],
+  ["코코아 콩","#7f5530","#6e492a","#5a3b22","#432c19"],
+  ["회백토","#6e3821","#654b32","#57402b","#473424"],
+  ["짙은 참나무 원목","#35281b","#4b3123","#402a1e","#342318"],
+  ["영혼 모래","#281a12","#382923","#30231e","#281c18"],
+  ["숯","#1e1512","#251610","#1f120d","#1a0f0b"],
+  ["벽돌","#130b08","#8c3b2d","#793227","#632a20"],
+  ["거미 눈","#4a1f18","#9e4c4d","#884142","#6f3536"],
+  ["사과","#532829","#973232","#822b2b","#6b2424"],
+  ["빨간 염료","#501b1b","#fc0000","#d90000","#b20000"],
+  ["진홍빛 네사체","#850000","#6f0200","#5f0100","#4e0100"],
+  ["네더 사마귀","#3a0100",null,null,null],
+  ["눈","#fcfcfc","#d9d9d9","#b2b2b2","#858585"],
+  ["뼛가루","#fcf9f2","#d9d6d1","#b2afaa","#85837f"],
+  ["거미줄","#c5c5c5","#a9a9a9","#8a8a8a","#686868"],
+  ["밝은 회색 염료","#a5a5a5","#8e8e8e","#747474","#575757"],
+  ["얼음","#a2a6b6","#8b8e9c","#72757f","#555760"],
+  ["회색 염료","#979797","#828282","#6b6b6b","#505050"],
+  ["자작나무 통나무","#856a61","#735b53","#5e4a44","#463732"],
+  ["화약","#6f6f6f","#5f5f5f","#4e4e4e","#3a3a3a"],
+  ["조약돌 심층암","#565b5b","#4a4e4e","#3c3f3f","#2d2f2f"],
+  ["부싯돌","#4b4b4b","#404040","#343434","#282828"],
+  ["먹물 주머니","#191919","#151515","#111111","#0d0d0d"],
+  ["갈색 버섯","#8d7647","#7a653d","#635331","#4a3e26"],
+  ["가스트 눈물","#a2a6b6","#8b8e9c","#72757f","#555760"],
+  ["철 조각","#c5c5c5","#a9a9a9","#8a8a8a","#686868"],
+  ["뒤틀린 자루","#4b7e97","#406c82","#34586b","#284250"],
+  ["뒤틀린 네사체","#5bd8d2","#4ebab5","#3f9894","#2f726f"],
+  ["뒤틀린 사마귀 블록","#6597d5","#5782b8","#476b96","#355071"],
+  ["균사체","#667434","#57632c","#475125","#353c1c"],
+  ["진홍빛 균사","#7e4a5c","#683c4b","#4d2d38","#3f262d"],
+  ["독 감자","#657e32","#576c2b","#475824","#35421b"],
 ];
-
-const SHADE_META = [
-  {label:"밝게 (L1)",     tool:"깃털 사용"},
-  {label:"기본",           tool:"기본 재료"},
-  {label:"어둡게 (D1)",    tool:"석탄 1회"},
-  {label:"더 어둡게 (D2)", tool:"석탄 2회"},
+const SHADE_META=[
+  {label:"밝게 (L1)",tool:"깃털 사용"},
+  {label:"기본",tool:"기본 재료"},
+  {label:"어둡게 (D1)",tool:"석탄 1회"},
+  {label:"더 어둡게 (D2)",tool:"석탄 2회"},
 ];
-
-function hexToRgb(hex){
-  if(!hex)return null;
-  const h=hex.replace('#','');
-  return{r:parseInt(h.slice(0,2),16),g:parseInt(h.slice(2,4),16),b:parseInt(h.slice(4,6),16),hex};
-}
-
+function hexToRgb(hex){if(!hex)return null;const h=hex.replace('#','');return{r:parseInt(h.slice(0,2),16),g:parseInt(h.slice(2,4),16),b:parseInt(h.slice(4,6),16),hex};}
 const PALETTE=[];
-DYE_DATA.forEach(([name,...shades])=>{
-  shades.forEach((hex,si)=>{
-    const rgb=hexToRgb(hex);
-    if(rgb) PALETTE.push({name,shadeIdx:si,...SHADE_META[si],...rgb});
-  });
-});
+DYE_DATA.forEach(([name,...shades])=>{shades.forEach((hex,si)=>{const rgb=hexToRgb(hex);if(rgb)PALETTE.push({name,shadeIdx:si,...SHADE_META[si],...rgb});});});
 
 let origImg=null,pixelW=0,pixelH=0,blockMap=null,BASE_SCALE=1,origW=0,origH=0;
-let zoomLevel=1; // 1.0 = 기본
+let zoomLevel=1;
 const ZOOM_STEPS=[0.5,0.75,1,1.2,1.5,2,2.5,3,4];
-
-const mc=document.getElementById('mc');
-const oc=document.getElementById('oc');
-const ctx=mc.getContext('2d');
-const octx=oc.getContext('2d');
+const mc=document.getElementById('mc'),oc=document.getElementById('oc');
+const ctx=mc.getContext('2d'),octx=oc.getContext('2d');
 const tip=document.getElementById('tooltip');
 
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');}));
 
-// ── 크롭 관련 (핸들 방식)
-let cropX=0,cropY=0,cropW=0,cropH=0;
-let cropImgScale=1;
-let dragMode=null; // 'move' | 'nw'|'ne'|'sw'|'se'|'n'|'s'|'w'|'e' | 'new'
-let dragStartMouse={x:0,y:0};
-let dragStartCrop={x:0,y:0,w:0,h:0};
-
+// 크롭
+let cropX=0,cropY=0,cropW=0,cropH=0,cropImgScale=1;
+let dragMode=null,dragStartMouse={x:0,y:0},dragStartCrop={x:0,y:0,w:0,h:0};
 const cropContainer=document.getElementById('cropContainer');
 const cropCanvas=document.getElementById('cropCanvas');
 const cropCtx=cropCanvas.getContext('2d');
 const cropBox=document.getElementById('cropBox');
 const cropInfo=document.getElementById('cropInfo');
-
 function drawCropPreview(){
   if(!origImg)return;
-  const containerW=cropContainer.clientWidth||340;
-  cropImgScale=containerW/origW;
-  cropCanvas.width=origW;
-  cropCanvas.height=origH;
-  cropCanvas.style.width=containerW+'px';
-  cropCanvas.style.height=Math.round(origH*cropImgScale)+'px';
+  const cW=cropContainer.clientWidth||340;
+  cropImgScale=cW/origW;
+  cropCanvas.width=origW;cropCanvas.height=origH;
+  cropCanvas.style.width=cW+'px';cropCanvas.style.height=Math.round(origH*cropImgScale)+'px';
   cropCtx.drawImage(origImg,0,0,origW,origH);
 }
-
 function updateCropUI(){
   const s=cropImgScale;
-  const bx=Math.round(cropX*s), by=Math.round(cropY*s);
-  const bw=Math.round(cropW*s), bh=Math.round(cropH*s);
-  const cH=Math.round(origH*s);
-  const cW=Math.round(origW*s);
-
-  cropBox.style.left=bx+'px'; cropBox.style.top=by+'px';
-  cropBox.style.width=bw+'px'; cropBox.style.height=bh+'px';
-  cropBox.style.display='block';
-
-  // 마스크 4조각
+  const bx=Math.round(cropX*s),by=Math.round(cropY*s),bw=Math.round(cropW*s),bh=Math.round(cropH*s);
+  const cH=Math.round(origH*s),cW=Math.round(origW*s);
+  cropBox.style.cssText+=`;left:${bx}px;top:${by}px;width:${bw}px;height:${bh}px;display:block;`;
   document.getElementById('cmTop').style.height=by+'px';
   document.getElementById('cmBottom').style.height=(cH-by-bh)+'px';
-  document.getElementById('cmLeft').style.left='0'; document.getElementById('cmLeft').style.width=bx+'px';
-  document.getElementById('cmLeft').style.top=by+'px'; document.getElementById('cmLeft').style.height=bh+'px';
-  document.getElementById('cmRight').style.right='0'; document.getElementById('cmRight').style.width=(cW-bx-bw)+'px';
-  document.getElementById('cmRight').style.top=by+'px'; document.getElementById('cmRight').style.height=bh+'px';
-
+  const cl=document.getElementById('cmLeft');cl.style.left='0';cl.style.width=bx+'px';cl.style.top=by+'px';cl.style.height=bh+'px';
+  const cr=document.getElementById('cmRight');cr.style.right='0';cr.style.width=(cW-bx-bw)+'px';cr.style.top=by+'px';cr.style.height=bh+'px';
   cropInfo.textContent=`선택: (${Math.round(cropX)}, ${Math.round(cropY)})  크기: ${Math.round(cropW)}×${Math.round(cropH)}px`;
 }
-
 function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
-
 function getMousePos(e){
   const rect=cropCanvas.getBoundingClientRect();
-  const clientX=e.touches?e.touches[0].clientX:e.clientX;
-  const clientY=e.touches?e.touches[0].clientY:e.clientY;
-  return{
-    x:clamp((clientX-rect.left)/cropImgScale,0,origW),
-    y:clamp((clientY-rect.top)/cropImgScale,0,origH)
-  };
+  const cx=e.touches?e.touches[0].clientX:e.clientX,cy=e.touches?e.touches[0].clientY:e.clientY;
+  return{x:clamp((cx-rect.left)/cropImgScale,0,origW),y:clamp((cy-rect.top)/cropImgScale,0,origH)};
 }
-
-// 핸들 mousedown
 document.querySelectorAll('.chandle').forEach(h=>{
-  h.addEventListener('mousedown',e=>{
-    e.stopPropagation(); e.preventDefault();
-    dragMode=h.dataset.dir;
-    const m=getMousePos(e);
-    dragStartMouse={x:m.x,y:m.y};
-    dragStartCrop={x:cropX,y:cropY,w:cropW,h:cropH};
-  });
+  h.addEventListener('mousedown',e=>{e.stopPropagation();e.preventDefault();dragMode=h.dataset.dir;const m=getMousePos(e);dragStartMouse={x:m.x,y:m.y};dragStartCrop={x:cropX,y:cropY,w:cropW,h:cropH};});
 });
-
-// 박스 이동 mousedown
-cropBox.addEventListener('mousedown',e=>{
-  if(e.target.classList.contains('chandle'))return;
-  e.preventDefault();
-  dragMode='move';
-  const m=getMousePos(e);
-  dragStartMouse={x:m.x,y:m.y};
-  dragStartCrop={x:cropX,y:cropY,w:cropW,h:cropH};
-});
-
-// 빈 영역 드래그 → 새 선택
-cropContainer.addEventListener('mousedown',e=>{
-  if(e.target!==cropCanvas&&e.target!==cropContainer)return;
-  e.preventDefault();
-  dragMode='new';
-  const m=getMousePos(e);
-  dragStartMouse={x:m.x,y:m.y};
-  cropX=m.x; cropY=m.y; cropW=0; cropH=0;
-});
-
+cropBox.addEventListener('mousedown',e=>{if(e.target.classList.contains('chandle'))return;e.preventDefault();dragMode='move';const m=getMousePos(e);dragStartMouse={x:m.x,y:m.y};dragStartCrop={x:cropX,y:cropY,w:cropW,h:cropH};});
+cropContainer.addEventListener('mousedown',e=>{if(e.target!==cropCanvas&&e.target!==cropContainer)return;e.preventDefault();dragMode='new';const m=getMousePos(e);dragStartMouse={x:m.x,y:m.y};cropX=m.x;cropY=m.y;cropW=0;cropH=0;});
 document.addEventListener('mousemove',e=>{
   if(!dragMode)return;
-  const m=getMousePos(e);
-  const dx=m.x-dragStartMouse.x, dy=m.y-dragStartMouse.y;
-  const {x:ox,y:oy,w:ow,h:oh}=dragStartCrop;
-  const MIN=4;
-
-  if(dragMode==='new'){
-    cropX=Math.min(dragStartMouse.x,m.x);
-    cropY=Math.min(dragStartMouse.y,m.y);
-    cropW=Math.abs(m.x-dragStartMouse.x);
-    cropH=Math.abs(m.y-dragStartMouse.y);
-  } else if(dragMode==='move'){
-    cropX=clamp(ox+dx,0,origW-cropW);
-    cropY=clamp(oy+dy,0,origH-cropH);
-  } else {
-    let nx=ox,ny=oy,nw=ow,nh=oh;
-    if(dragMode.includes('e')){nw=clamp(ow+dx,MIN,origW-nx);}
-    if(dragMode.includes('s')){nh=clamp(oh+dy,MIN,origH-ny);}
-    if(dragMode.includes('w')){const nd=clamp(dx,-ox,ow-MIN);nx=ox+nd;nw=ow-nd;}
-    if(dragMode.includes('n')){const nd=clamp(dy,-oy,oh-MIN);ny=oy+nd;nh=oh-nd;}
-    cropX=nx;cropY=ny;cropW=nw;cropH=nh;
-  }
+  const m=getMousePos(e),dx=m.x-dragStartMouse.x,dy=m.y-dragStartMouse.y;
+  const {x:ox,y:oy,w:ow,h:oh}=dragStartCrop,MIN=4;
+  if(dragMode==='new'){cropX=Math.min(dragStartMouse.x,m.x);cropY=Math.min(dragStartMouse.y,m.y);cropW=Math.abs(m.x-dragStartMouse.x);cropH=Math.abs(m.y-dragStartMouse.y);}
+  else if(dragMode==='move'){cropX=clamp(ox+dx,0,origW-cropW);cropY=clamp(oy+dy,0,origH-cropH);}
+  else{let nx=ox,ny=oy,nw=ow,nh=oh;if(dragMode.includes('e')){nw=clamp(ow+dx,MIN,origW-nx);}if(dragMode.includes('s')){nh=clamp(oh+dy,MIN,origH-ny);}if(dragMode.includes('w')){const nd=clamp(dx,-ox,ow-MIN);nx=ox+nd;nw=ow-nd;}if(dragMode.includes('n')){const nd=clamp(dy,-oy,oh-MIN);ny=oy+nd;nh=oh-nd;}cropX=nx;cropY=ny;cropW=nw;cropH=nh;}
   updateCropUI();
 });
-
-document.addEventListener('mouseup',()=>{
-  if(!dragMode)return;
-  if(cropW<4||cropH<4)cropReset();
-  dragMode=null;
-});
-
-function cropReset(){
-  cropX=0;cropY=0;cropW=origW;cropH=origH;
-  updateCropUI();
-}
+document.addEventListener('mouseup',()=>{if(!dragMode)return;if(cropW<4||cropH<4)cropReset();dragMode=null;});
+function cropReset(){cropX=0;cropY=0;cropW=origW;cropH=origH;updateCropUI();}
 function cropApply(){processImage();}
 
 // 슬라이더
 document.getElementById('cx').addEventListener('input',e=>document.getElementById('cxv').textContent=e.target.value);
 document.getElementById('cy').addEventListener('input',e=>document.getElementById('cyv').textContent=e.target.value);
-['showGrid','showBorder','showLabel'].forEach(id=>
-  document.getElementById(id).addEventListener('change',()=>{if(blockMap)drawOverlay();})
-);
+['showGrid','showBorder','showLabel'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{if(blockMap)drawOverlay();}));
 document.getElementById('subGrid').addEventListener('change',()=>{if(blockMap)drawOverlay();});
 document.getElementById('flipH').addEventListener('change',()=>{if(blockMap)processImage();});
-// 업로드 이벤트
+
+// 업로드
 const uz=document.getElementById('uploadZone');
 uz.addEventListener('dragover',e=>{e.preventDefault();uz.style.background='#f0f0f0';});
 uz.addEventListener('dragleave',()=>uz.style.background='');
 uz.addEventListener('drop',e=>{e.preventDefault();uz.style.background='';const f=e.dataTransfer.files[0];if(f)loadFile(f);});
 document.getElementById('fi').addEventListener('change',e=>{if(e.target.files[0])loadFile(e.target.files[0]);});
-
 function loadFile(f){
   const r=new FileReader();
-  r.onload=ev=>{
-    const img=new Image();
-    img.onload=()=>{
-      origImg=img;origW=img.naturalWidth;origH=img.naturalHeight;
-      uz.textContent=`✅ ${f.name} (${origW}×${origH}px)`;
-      document.getElementById('cropPanel').style.display='block';
-      drawCropPreview();
-      cropReset();
-      updateCropUI();
-      processImage();
-    };
-    img.src=ev.target.result;
-  };
-  r.readAsDataURL(f);
+  r.onload=ev=>{const img=new Image();img.onload=()=>{
+    origImg=img;origW=img.naturalWidth;origH=img.naturalHeight;
+    uz.textContent=`✅ ${f.name} (${origW}×${origH}px)`;
+    document.getElementById('cropPanel').style.display='block';
+    drawCropPreview();cropReset();updateCropUI();processImage();
+  };img.src=ev.target.result;};r.readAsDataURL(f);
 }
 
-function nearestColor(r,g,b){
-  let best=null,bestD=Infinity;
-  for(const p of PALETTE){const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;if(d<bestD){bestD=d;best=p;}}
-  return best;
-}
+function nearestColor(r,g,b){let best=null,bestD=Infinity;for(const p of PALETTE){const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;if(d<bestD){bestD=d;best=p;}}return best;}
 
 function processImage(){
   if(!origImg)return;
@@ -578,33 +462,20 @@ function processImage(){
   const dither=document.getElementById('dither').value;
   const flip=document.getElementById('flipH').checked;
   pixelW=cxN*CELL;pixelH=cyN*CELL;
-
-  // 크롭 영역을 소스로 사용
-  const sx=cropX, sy=cropY, sw=cropW||origW, sh=cropH||origH;
-
+  const sx=cropX,sy=cropY,sw=cropW||origW,sh=cropH||origH;
   const src=document.createElement('canvas');src.width=pixelW;src.height=pixelH;
   const sc=src.getContext('2d');sc.imageSmoothingEnabled=true;sc.imageSmoothingQuality='high';
   if(flip){sc.save();sc.translate(pixelW,0);sc.scale(-1,1);}
-  sc.drawImage(origImg, sx, sy, sw, sh, 0, 0, pixelW, pixelH);
+  sc.drawImage(origImg,sx,sy,sw,sh,0,0,pixelW,pixelH);
   if(flip)sc.restore();
-
   let imd=src.getContext('2d').getImageData(0,0,pixelW,pixelH);
-  if(dither==='floyd')imd=floydDither(imd);
-  else if(dither==='ordered')imd=orderedDither(imd);
-
-  blockMap=[];
-  const d=imd.data;
+  if(dither==='floyd')imd=floydDither(imd);else if(dither==='ordered')imd=orderedDither(imd);
+  blockMap=[];const d=imd.data;
   for(let y=0;y<pixelH;y++){blockMap[y]=[];for(let x=0;x<pixelW;x++){const i=(y*pixelW+x)*4;blockMap[y][x]=nearestColor(d[i],d[i+1],d[i+2]);}}
-
-  // BASE_SCALE: 좌측 패널 크기에 맞게 자동 계산
   const area=document.getElementById('canvasArea');
-  const availW=area.clientWidth-24;
-  const availH=area.clientHeight-24;
+  const availW=area.clientWidth-24,availH=area.clientHeight-24;
   BASE_SCALE=Math.max(1,Math.min(16,Math.floor(Math.min(availW/pixelW,availH/pixelH))));
-
-  zoomLevel=1;
-  applyZoom();
-
+  zoomLevel=1;applyZoom();
   document.getElementById('noImage').style.display='none';
   document.getElementById('canvasWrap').style.display='inline-block';
   document.getElementById('zoomBar').style.display='flex';
@@ -613,43 +484,20 @@ function processImage(){
 }
 
 function currentScale(){return Math.round(BASE_SCALE*zoomLevel);}
-
 function applyZoom(){
   const S=Math.max(1,currentScale());
-  mc.width=pixelW*S;mc.height=pixelH*S;
-  oc.width=pixelW*S;oc.height=pixelH*S;
-
+  mc.width=pixelW*S;mc.height=pixelH*S;oc.width=pixelW*S;oc.height=pixelH*S;
   ctx.clearRect(0,0,mc.width,mc.height);
   for(let y=0;y<pixelH;y++)for(let x=0;x<pixelW;x++){const b=blockMap[y][x];ctx.fillStyle=`rgb(${b.r},${b.g},${b.b})`;ctx.fillRect(x*S,y*S,S,S);}
-  drawOverlay();
-  updateZoomLabel();
+  drawOverlay();updateZoomLabel();
 }
-
 function updateZoomLabel(){
-  const pct=Math.round(zoomLevel*100);
-  document.getElementById('zoomLabel').textContent=pct+'%';
+  document.getElementById('zoomLabel').textContent=Math.round(zoomLevel*100)+'%';
   document.getElementById('zoomResetBtn').classList.toggle('active',zoomLevel===1);
 }
-
-function zoomStep(dir){
-  const idx=ZOOM_STEPS.indexOf(zoomLevel);
-  const next=idx+dir;
-  if(next<0||next>=ZOOM_STEPS.length)return;
-  zoomLevel=ZOOM_STEPS[next];
-  applyZoom();
-}
-
-function zoomReset(){
-  zoomLevel=1;
-  applyZoom();
-}
-
-// 캔버스 클릭으로 확대/축소
-mc.addEventListener('click',()=>{
-  if(!blockMap)return;
-  if(zoomLevel<2) zoomStep(1);
-  else zoomReset();
-});
+function zoomStep(dir){const idx=ZOOM_STEPS.indexOf(zoomLevel),next=idx+dir;if(next<0||next>=ZOOM_STEPS.length)return;zoomLevel=ZOOM_STEPS[next];applyZoom();}
+function zoomReset(){zoomLevel=1;applyZoom();}
+mc.addEventListener('click',()=>{if(!blockMap)return;if(zoomLevel<2)zoomStep(1);else zoomReset();});
 
 function drawOverlay(){
   const S=Math.max(1,currentScale());
@@ -660,58 +508,19 @@ function drawOverlay(){
   const subDiv=parseInt(document.getElementById('subGrid').value);
   const cxN=parseInt(document.getElementById('cx').value);
   const cyN=parseInt(document.getElementById('cy').value);
-
-  if(showGrid){
-    octx.strokeStyle='rgba(0,0,0,0.1)';octx.lineWidth=0.5;
-    for(let x=0;x<=pixelW;x++){octx.beginPath();octx.moveTo(x*S,0);octx.lineTo(x*S,pixelH*S);octx.stroke();}
-    for(let y=0;y<=pixelH;y++){octx.beginPath();octx.moveTo(0,y*S);octx.lineTo(pixelW*S,y*S);octx.stroke();}
-  }
-  if(subDiv>0){
-    const step=CELL/subDiv;
-    octx.save();octx.strokeStyle='rgba(80,140,255,0.55)';octx.lineWidth=1;octx.setLineDash([3,3]);
-    for(let gy=0;gy<cyN;gy++)for(let s=1;s<subDiv;s++){const py=(gy*CELL+s*step)*S;octx.beginPath();octx.moveTo(0,py);octx.lineTo(pixelW*S,py);octx.stroke();}
-    for(let gx=0;gx<cxN;gx++)for(let s=1;s<subDiv;s++){const px=(gx*CELL+s*step)*S;octx.beginPath();octx.moveTo(px,0);octx.lineTo(px,pixelH*S);octx.stroke();}
-    if(S>=4){
-      const fs=Math.max(8,Math.min(11,S*step/4));
-      octx.font=`bold ${fs}px system-ui,sans-serif`;octx.textAlign='left';octx.textBaseline='top';
-      for(let gy=0;gy<cyN;gy++)for(let gx=0;gx<cxN;gx++)for(let sy=0;sy<subDiv;sy++)for(let sx=0;sx<subDiv;sx++){
-        const px=(gx*CELL+sx*step)*S+2,py=(gy*CELL+sy*step)*S+2;
-        octx.fillStyle='rgba(0,0,0,0.35)';octx.fillText(`${sx+1},${sy+1}`,px+1,py+1);
-        octx.fillStyle='rgba(80,140,255,0.9)';octx.fillText(`${sx+1},${sy+1}`,px,py);
-      }
-    }
-    octx.restore();
-  }
-  if(showLabel&&S>=10){
-    octx.textAlign='center';octx.textBaseline='middle';
-    const fs=Math.max(6,Math.min(9,S-4));
-    for(let y=0;y<pixelH;y++)for(let x=0;x<pixelW;x++){
-      const b=blockMap[y][x];const lum=0.299*b.r+0.587*b.g+0.114*b.b;
-      octx.fillStyle=lum>128?'rgba(0,0,0,0.8)':'rgba(255,255,255,0.9)';
-      octx.font=`${fs}px system-ui,sans-serif`;
-      octx.fillText(b.name.length>5?b.name.slice(0,4)+'…':b.name,(x+0.5)*S,(y+0.5)*S);
-    }
-  }
-  if(showBorder){
-    octx.strokeStyle='rgba(255,100,0,0.9)';octx.lineWidth=2;octx.setLineDash([]);
-    for(let gx=0;gx<=cxN;gx++){octx.beginPath();octx.moveTo(gx*CELL*S,0);octx.lineTo(gx*CELL*S,pixelH*S);octx.stroke();}
-    for(let gy=0;gy<=cyN;gy++){octx.beginPath();octx.moveTo(0,gy*CELL*S);octx.lineTo(pixelW*S,gy*CELL*S);octx.stroke();}
-    octx.font='500 11px system-ui,sans-serif';octx.textAlign='left';octx.textBaseline='top';
-    for(let gy=0;gy<cyN;gy++)for(let gx=0;gx<cxN;gx++){
-      octx.fillStyle='rgba(255,100,0,0.95)';
-      octx.fillText(`캔버스 ${gy*cxN+gx+1}`,gx*CELL*S+4,gy*CELL*S+4);
-    }
-  }
+  if(showGrid){octx.strokeStyle='rgba(0,0,0,0.1)';octx.lineWidth=0.5;for(let x=0;x<=pixelW;x++){octx.beginPath();octx.moveTo(x*S,0);octx.lineTo(x*S,pixelH*S);octx.stroke();}for(let y=0;y<=pixelH;y++){octx.beginPath();octx.moveTo(0,y*S);octx.lineTo(pixelW*S,y*S);octx.stroke();}}
+  if(subDiv>0){const step=CELL/subDiv;octx.save();octx.strokeStyle='rgba(80,140,255,0.55)';octx.lineWidth=1;octx.setLineDash([3,3]);for(let gy=0;gy<cyN;gy++)for(let s=1;s<subDiv;s++){const py=(gy*CELL+s*step)*S;octx.beginPath();octx.moveTo(0,py);octx.lineTo(pixelW*S,py);octx.stroke();}for(let gx=0;gx<cxN;gx++)for(let s=1;s<subDiv;s++){const px=(gx*CELL+s*step)*S;octx.beginPath();octx.moveTo(px,0);octx.lineTo(px,pixelH*S);octx.stroke();}if(S>=4){const fs=Math.max(8,Math.min(11,S*step/4));octx.font=`bold ${fs}px system-ui,sans-serif`;octx.textAlign='left';octx.textBaseline='top';for(let gy=0;gy<cyN;gy++)for(let gx=0;gx<cxN;gx++)for(let sy=0;sy<subDiv;sy++)for(let sx=0;sx<subDiv;sx++){const px=(gx*CELL+sx*step)*S+2,py=(gy*CELL+sy*step)*S+2;octx.fillStyle='rgba(0,0,0,0.35)';octx.fillText(`${sx+1},${sy+1}`,px+1,py+1);octx.fillStyle='rgba(80,140,255,0.9)';octx.fillText(`${sx+1},${sy+1}`,px,py);}}octx.restore();}
+  if(showLabel&&S>=10){octx.textAlign='center';octx.textBaseline='middle';const fs=Math.max(6,Math.min(9,S-4));for(let y=0;y<pixelH;y++)for(let x=0;x<pixelW;x++){const b=blockMap[y][x];const lum=0.299*b.r+0.587*b.g+0.114*b.b;octx.fillStyle=lum>128?'rgba(0,0,0,0.8)':'rgba(255,255,255,0.9)';octx.font=`${fs}px system-ui,sans-serif`;octx.fillText(b.name.length>5?b.name.slice(0,4)+'…':b.name,(x+0.5)*S,(y+0.5)*S);}}
+  if(showBorder){octx.strokeStyle='rgba(255,100,0,0.9)';octx.lineWidth=2;octx.setLineDash([]);for(let gx=0;gx<=cxN;gx++){octx.beginPath();octx.moveTo(gx*CELL*S,0);octx.lineTo(gx*CELL*S,pixelH*S);octx.stroke();}for(let gy=0;gy<=cyN;gy++){octx.beginPath();octx.moveTo(0,gy*CELL*S);octx.lineTo(pixelW*S,gy*CELL*S);octx.stroke();}octx.font='500 11px system-ui,sans-serif';octx.textAlign='left';octx.textBaseline='top';for(let gy=0;gy<cyN;gy++)for(let gx=0;gx<cxN;gx++){octx.fillStyle='rgba(255,100,0,0.95)';octx.fillText(`캔버스 ${gy*cxN+gx+1}`,gx*CELL*S+4,gy*CELL*S+4);}}
 }
 
-// 툴팁 (mc 기준)
+// 툴팁
 mc.addEventListener('mousemove',e=>{
   if(!blockMap)return;
   const S=Math.max(1,currentScale());
   const rect=mc.getBoundingClientRect();
-  const scaleX=mc.width/rect.width,scaleY=mc.height/rect.height;
-  const px=Math.floor((e.clientX-rect.left)*scaleX/S);
-  const py=Math.floor((e.clientY-rect.top)*scaleY/S);
+  const px=Math.floor((e.clientX-rect.left)*(mc.width/rect.width)/S);
+  const py=Math.floor((e.clientY-rect.top)*(mc.height/rect.height)/S);
   if(px<0||px>=pixelW||py<0||py>=pixelH){tip.style.display='none';return;}
   const b=blockMap[py][px];
   const cxN=parseInt(document.getElementById('cx').value);
@@ -746,16 +555,8 @@ DYE_DATA.forEach(([name,l1])=>{
   pbDropdown.appendChild(opt);
 });
 
-function toggleDropdown(){
-  const isOpen=pbDropdown.classList.contains('open');
-  pbDropdown.classList.toggle('open',!isOpen);
-  pbTrigger.classList.toggle('open',!isOpen);
-}
-document.addEventListener('click',e=>{
-  if(!document.getElementById('pbCustomSelect').contains(e.target)){
-    pbDropdown.classList.remove('open');pbTrigger.classList.remove('open');
-  }
-});
+function toggleDropdown(){const isOpen=pbDropdown.classList.contains('open');pbDropdown.classList.toggle('open',!isOpen);pbTrigger.classList.toggle('open',!isOpen);}
+document.addEventListener('click',e=>{if(!document.getElementById('pbCustomSelect').contains(e.target)){pbDropdown.classList.remove('open');pbTrigger.classList.remove('open');}});
 
 function selectDye(name,l1hex){
   selectedDyeName=name;
@@ -763,29 +564,23 @@ function selectDye(name,l1hex){
   pbTriggerText.textContent=name;pbTriggerText.classList.remove('placeholder');
   pbDropdown.querySelectorAll('.pb-option').forEach(el=>el.classList.toggle('selected',el.dataset.name===name));
   pbDropdown.classList.remove('open');pbTrigger.classList.remove('open');
-  setShade(1);renderPreview();
+  setShade(1);renderPaletteBar();
 }
+function setShade(idx){selectedShade=idx;[0,1,2,3].forEach(i=>document.getElementById('rl'+i).classList.toggle('active',i===idx));renderPaletteBar();}
 
-function setShade(idx){
-  selectedShade=idx;
-  [0,1,2,3].forEach(i=>document.getElementById('rl'+i).classList.toggle('active',i===idx));
-  renderPreview();
-}
-
-function renderPreview(){
+function renderPaletteBar(){
   const dye=DYE_DATA.find(d=>d[0]===selectedDyeName);
-  const row=document.getElementById('shadeRow');
-  if(!dye){row.style.display='none';return;}
-  row.style.display='grid';
+  const bar=document.getElementById('shadeCardsBar');
+  bar.innerHTML='';
+  if(!dye)return;
   const hexes=[dye[1],dye[2],dye[3],dye[4]];
-  row.innerHTML='';
   hexes.forEach((hex,i)=>{
     if(!hex)return;
     const card=document.createElement('div');card.className='shade-card'+(i===selectedShade?' highlight':'');
-    const swatch=document.createElement('div');swatch.className='shade-swatch';swatch.style.background=hex;
+    const sw=document.createElement('div');sw.className='shade-swatch';sw.style.background=hex;
     const info=document.createElement('div');info.className='shade-info';
-    info.innerHTML=`<div class="s-label">${SHADE_META[i].label}</div><div class="s-hex">${hex.toUpperCase()}</div><div class="s-item">${SHADE_META[i].tool}</div>`;
-    card.appendChild(swatch);card.appendChild(info);row.appendChild(card);
+    info.innerHTML=`<span class="s-label">${SHADE_META[i].label}</span><span class="s-hex">${hex.toUpperCase()}</span>`;
+    card.appendChild(sw);card.appendChild(info);bar.appendChild(card);
   });
 }
 
@@ -794,21 +589,18 @@ function buildDownloadPanel(cxN,cyN){
   const grid=document.getElementById('dlGrid');grid.innerHTML='';
   for(let gy=0;gy<cyN;gy++)for(let gx=0;gx<cxN;gx++){
     const idx=gy*cxN+gx+1;
-    const btn=document.createElement('button');
-    btn.textContent=`캔버스 ${idx} (${gx+1}열·${gy+1}행)`;btn.style.textAlign='left';btn.style.width='100%';
-    btn.onclick=((_gx,_gy,_i)=>()=>downloadCanvas(_gx,_gy,_i))(gx,gy,idx);
-    grid.appendChild(btn);
+    const btn=document.createElement('button');btn.textContent=`캔버스 ${idx} (${gx+1}열·${gy+1}행)`;btn.style.textAlign='left';btn.style.width='100%';
+    btn.onclick=((_gx,_gy,_i)=>()=>downloadCanvas(_gx,_gy,_i))(gx,gy,idx);grid.appendChild(btn);
   }
 }
 function downloadCanvas(gx,gy,idx){
-  const tmp=document.createElement('canvas');tmp.width=CELL;tmp.height=CELL;
-  const tc=tmp.getContext('2d');const ox=gx*CELL,oy=gy*CELL;
+  const tmp=document.createElement('canvas');tmp.width=CELL;tmp.height=CELL;const tc=tmp.getContext('2d');
+  const ox=gx*CELL,oy=gy*CELL;
   for(let y=0;y<CELL;y++)for(let x=0;x<CELL;x++){const b=blockMap[oy+y][ox+x];tc.fillStyle=`rgb(${b.r},${b.g},${b.b})`;tc.fillRect(x,y,1,1);}
   const a=document.createElement('a');a.download=`artmap_canvas_${idx}.png`;a.href=tmp.toDataURL();a.click();
 }
 function downloadAll(){
-  const tmp=document.createElement('canvas');tmp.width=pixelW;tmp.height=pixelH;
-  const tc=tmp.getContext('2d');
+  const tmp=document.createElement('canvas');tmp.width=pixelW;tmp.height=pixelH;const tc=tmp.getContext('2d');
   for(let y=0;y<pixelH;y++)for(let x=0;x<pixelW;x++){const b=blockMap[y][x];tc.fillStyle=`rgb(${b.r},${b.g},${b.b})`;tc.fillRect(x,y,1,1);}
   const a=document.createElement('a');a.download='artmap_full.png';a.href=tmp.toDataURL();a.click();
 }
